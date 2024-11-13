@@ -1,9 +1,13 @@
-import requests
-import pandas as pd
-from time import sleep
 import argparse
+import os
+from time import sleep
+from typing import Optional
 
-BOTSERVER_URL = "https://fly-botserver.vlab.digital"
+import pandas as pd
+import requests
+from tqdm import tqdm
+
+BOTSERVER_URL = os.getenv("VLAB_BOTSERVER_URL", "https://fly-botserver.vlab.digital")
 
 
 def bailout(user, page, form):
@@ -22,7 +26,7 @@ def post_bail(dat):
     return res
 
 
-def main(path: str):
+def main(path: str, limit: Optional[int], start: Optional[int]):
     df = pd.read_csv(
         path, dtype={"user": "string", "page": "string", "shortcode": "string"}
     )
@@ -30,20 +34,26 @@ def main(path: str):
     try:
         bails = [bailout(r.user, r.page, r.shortcode) for _, r in df.iterrows()]
     except AttributeError:
-        print('Error: Your csv is not the right format. Please use the headers: user,page,shortcode')
+        print(
+            "Error: Your csv is not the right format. "
+            "Please use the headers: user,page,shortcode"
+        )
         return
 
-    for i, b in enumerate(bails):
-        if i % 20 == 0 and i != 0:
-            print(f"Bailed {i} users.")
+    bails = bails[start:limit]
+
+    for b in tqdm(bails):
         try:
             post_bail(b)
         except Exception as e:
             print(e)
 
 
+# ended at 2722
 def run():
     parser = argparse.ArgumentParser()
     parser.add_argument("-p", "--path", type=str, required=True)
+    parser.add_argument("-l", "--limit", type=int)
+    parser.add_argument("-s", "--start", type=int)
     args = parser.parse_args()
-    main(args.path)
+    main(args.path, args.limit, args.start)
